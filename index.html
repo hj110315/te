@@ -18,7 +18,7 @@
       overflow: hidden;
     }
 
-    /* --- LOBBY OVERLAY --- */
+    /* --- LOBBY SCREEN --- */
     #lobby-screen {
       position: absolute;
       top: 0; left: 0; width: 100%; height: 100%;
@@ -133,7 +133,7 @@
 
     #game-overlay {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(10, 11, 14, 0.7); display: flex; flex-direction: column;
+      background: rgba(10, 11, 14, 0.75); display: flex; flex-direction: column;
       justify-content: center; align-items: center; gap: 12px; color: #fff;
       font-weight: 700; font-size: 20px; pointer-events: none; z-index: 10;
     }
@@ -216,7 +216,7 @@
     <div id="top-bar">
       <div class="stat">Balance: <span id="val-troops" class="stat-val">0.00</span></div>
       <div class="stat">Land: <span id="val-land" class="stat-val">0 px</span> (<span id="val-land-pct">0.0%</span>)</div>
-      <div class="stat">Interest Rate: <span id="val-interest" class="stat-val interest-green">8.150%</span></div>
+      <div class="stat">Interest Rate: <span id="val-interest" class="stat-val interest-green">9.400%</span></div>
       <div class="stat">Troop Density: <span id="val-density" class="stat-val">0.00 / 150</span></div>
     </div>
 
@@ -602,7 +602,7 @@
         }
 
         // Launch Naval Expedition if landlocked or blocked by strong neighbors
-        if (Math.random() < 0.12 && bot.troops > 1500.0) {
+        if ((difficulty === "HARDCORE" || difficulty === "HARD") && Math.random() < 0.12 && bot.troops > 1500.0) {
           const rx = Math.floor(Math.random() * WIDTH);
           const ry = Math.floor(Math.random() * HEIGHT);
           if (map[ry * WIDTH + rx] !== WATER && map[ry * WIDTH + rx] !== bot.id) {
