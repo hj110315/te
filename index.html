@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Territorial.io - World Map Edition</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body {
+      background-color: #0b0c10;
+      color: #e0e6ed;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    /* --- LOBBY OVERLAY --- */
+    #lobby-screen {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: radial-gradient(circle at center, #1a1d24 0%, #0b0c10 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      gap: 20px;
+    }
+    .lobby-card {
+      background: #151821;
+      border: 1px solid #282d3c;
+      border-radius: 12px;
+      padding: 30px;
+      width: 420px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.8);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .lobby-card h1 {
+      font-size: 24px;
+      text-align: center;
+      letter-spacing: 1px;
+      color: #4da6ff;
+      margin-bottom: 5px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .form-group label {
+      font-size: 12px;
+      font-weight: 700;
+      color: #8a96a8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .form-group input, .form-group select {
+      background: #0d0e14;
+      border: 1px solid #282d3c;
+      color: #fff;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      outline: none;
+    }
+    .form-group input:focus, .form-group select:focus {
+      border-color: #4da6ff;
+    }
+    .btn-start {
+      background: linear-gradient(135deg, #4da6ff 0%, #0066cc 100%);
+      color: white;
+      border: none;
+      padding: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: transform 0.1s, opacity 0.2s;
+    }
+    .btn-start:hover { opacity: 0.95; }
+    .btn-start:active { transform: scale(0.98); }
+
+    /* --- GAME CANVAS UI --- */
+    #game-container {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      max-width: 960px;
+      padding: 10px;
+    }
+    #top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      background: #151821;
+      padding: 10px 18px;
+      border-radius: 6px;
+      border: 1px solid #282d3c;
+      font-size: 13px;
+    }
+    .stat { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+    .stat-val { color: #4cd137; font-family: monospace; font-size: 14px; }
+    .interest-red { color: #e84118 !important; }
+    .interest-green { color: #4cd137 !important; }
+
+    #cycle-bar-container {
+      width: 100%; height: 5px; background: #202430; border-radius: 3px; overflow: hidden;
+    }
+    #cycle-bar-fill {
+      height: 100%; width: 0%; background: linear-gradient(90deg, #00a8ff, #9c88ff); transition: width 0.05s linear;
+    }
+
+    #canvas-wrapper {
+      position: relative;
+      border: 2px solid #282d3c;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #000;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.8);
+    }
+    canvas { display: block; image-rendering: pixelated; cursor: crosshair; }
+
+    #game-overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(10, 11, 14, 0.7); display: flex; flex-direction: column;
+      justify-content: center; align-items: center; gap: 12px; color: #fff;
+      font-weight: 700; font-size: 20px; pointer-events: none; z-index: 10;
+    }
+
+    #leaderboard {
+      position: absolute; top: 10px; right: 10px;
+      background: rgba(15, 17, 23, 0.88); backdrop-filter: blur(4px);
+      padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1);
+      font-size: 11px; min-width: 180px; max-height: 220px; overflow-y: auto; pointer-events: none;
+    }
+    #leaderboard h4 {
+      text-transform: uppercase; letter-spacing: 0.8px; color: #888; font-size: 10px;
+      margin-bottom: 4px; border-bottom: 1px solid #333; padding-bottom: 2px;
+    }
+    .lb-row { display: flex; justify-content: space-between; margin-top: 2px; font-weight: 600; }
+
+    #controls {
+      display: flex; align-items: center; width: 100%; background: #151821;
+      padding: 10px 18px; border-radius: 6px; border: 1px solid #282d3c; gap: 15px;
+    }
+    .slider-container { display: flex; align-items: center; gap: 10px; flex-grow: 1; }
+    input[type=range] {
+      flex-grow: 1; height: 6px; border-radius: 3px; background: #2f3640;
+      outline: none; accent-color: #e84118; cursor: pointer;
+    }
+    .btn {
+      background: #e84118; color: white; border: none; padding: 8px 18px;
+      font-size: 13px; font-weight: 700; border-radius: 4px; cursor: pointer;
+      transition: background 0.15s, transform 0.05s;
+    }
+    .btn:hover { background: #c23616; }
+    .btn:active { transform: scale(0.97); }
+    .btn-secondary { background: #487eb0; }
+    .btn-secondary:hover { background: #40739e; }
+    .btn-active { outline: 2px solid #00a8ff; }
+  </style>
+</head>
+<body>
+
+  <!-- LOBBY SCREEN -->
+  <div id="lobby-screen">
+    <div class="lobby-card">
+      <h1>TERRITORIAL.IO</h1>
+      <div class="form-group">
+        <label for="playerName">Player Name</label>
+        <input type="text" id="playerName" value="Conqueror" maxlength="15">
+      </div>
+      <div class="form-group">
+        <label for="botCount">Bot Competitors</label>
+        <select id="botCount">
+          <option value="8">8 Bots (Fast)</option>
+          <option value="16" selected>16 Bots (Standard)</option>
+          <option value="32">32 Bots (Dense)</option>
+          <option value="64">64 Bots (Mayhem)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="botDifficulty">AI Intelligence</label>
+        <select id="botDifficulty">
+          <option value="EASY">Easy (Casual)</option>
+          <option value="MEDIUM">Medium (Balanced)</option>
+          <option value="HARD">Hard (Aggressive)</option>
+          <option value="HARDCORE" selected>Hardcore (Tactical & Alliances)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="mapType">Map Generator</label>
+        <select id="mapType">
+          <option value="WORLD" selected>World Pixelated Map</option>
+          <option value="ARCHIPELAGO">Island Archipelago</option>
+          <option value="PANGAEA">Supercontinent Pangaea</option>
+        </select>
+      </div>
+      <button id="startGameBtn" class="btn-start">ENTER MATCH</button>
+    </div>
+  </div>
+
+  <!-- GAME INTERFACE -->
+  <div id="game-container">
+    <div id="top-bar">
+      <div class="stat">Balance: <span id="val-troops" class="stat-val">0.00</span></div>
+      <div class="stat">Land: <span id="val-land" class="stat-val">0 px</span> (<span id="val-land-pct">0.0%</span>)</div>
+      <div class="stat">Interest Rate: <span id="val-interest" class="stat-val interest-green">8.150%</span></div>
+      <div class="stat">Troop Density: <span id="val-density" class="stat-val">0.00 / 150</span></div>
+    </div>
+
+    <div id="cycle-bar-container">
+      <div id="cycle-bar-fill"></div>
+    </div>
+
+    <div id="canvas-wrapper">
+      <canvas id="canvas" width="400" height="250" style="width: 900px; height: 562px;"></canvas>
+
+      <div id="game-overlay">
+        <div id="overlay-msg">CLICK LAND TO PICK YOUR SPAWN POINT</div>
+      </div>
+
+      <div id="leaderboard">
+        <h4>Leaderboard</h4>
+        <div id="lb-list"></div>
+      </div>
+    </div>
+
+    <div id="controls">
+      <div class="slider-container">
+        <label for="attackSlider" style="font-weight:600; font-size:12px;">Attack Ratio:</label>
+        <input type="range" id="attackSlider" min="1" max="100" value="20">
+        <span id="sliderVal" style="width: 45px; font-weight: 700; font-size: 13px;">20%</span>
+      </div>
+      <button id="attackBtn" class="btn">ATTACK</button>
+      <button id="boatBtn" class="btn btn-secondary">NAVAL BOAT</button>
+      <button id="lobbyBtn" class="btn" style="background:#2f3640;">LOBBY</button>
+    </div>
+  </div>
+
+  <script>
+    // --- CANVAS & SYSTEM CONFIG ---
+    const WIDTH = 400;
+    const HEIGHT = 250;
+    const TOTAL_PIXELS = WIDTH * HEIGHT;
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(WIDTH, HEIGHT);
+
+    const map = new Uint8Array(TOTAL_PIXELS);
+    const WATER = 0, NEUTRAL = 1, PLAYER_ID = 2;
+
+    const BOT_NAMES = [
+      "Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel",
+      "India", "Juliet", "Kilo", "Lima", "Mike", "November", "Oscar", "Papa",
+      "Quebec", "Romeo", "Sierra", "Tango", "Uniform", "Victor", "Whiskey", "Xray",
+      "Yankee", "Zulu", "Apex", "Vortex", "Titan", "Shadow", "Blaze", "Cipher"
+    ];
+
+    const BOT_COLORS = [
+      [46, 134, 222], [16, 172, 137], [255, 159, 26], [156, 136, 255],
+      [232, 65, 24], [0, 210, 211], [255, 221, 89], [255, 77, 77],
+      [75, 207, 250], [52, 231, 228], [229, 80, 57], [120, 111, 166]
+    ];
+
+    // --- GAME ENGINE STATE ---
+    let gameState = "LOBBY";
+    let gameCycle = 0;
+    let cycleProgress = 0.0;
+    let attackPercent = 20;
+    let totalLandPixels = 0;
+    let navalMode = false;
+    let difficulty = "HARDCORE";
+    let botCountSetting = 16;
+    let mapTypeSetting = "WORLD";
+
+    let players = [];
+    let activeAttackWaves = [];
+    let activeBoats = [];
+
+    // --- MAP GENERATORS ---
+    function generateWorldMap() {
+      totalLandPixels = 0;
+      for (let y = 0; y < HEIGHT; y++) {
+        for (let x = 0; x < WIDTH; x++) {
+          const idx = y * WIDTH + x;
+          const nx = (x / WIDTH) * 6.0 - 3.0;
+          const ny = (y / HEIGHT) * 4.0 - 2.0;
+
+          // Multi-continent noise (Americas, Eurasia/Africa, Australia)
+          const americas = Math.exp(-((nx + 1.8)**2 * 1.2 + (ny - 0.1)**2 * 0.8)) * 1.25;
+          const eurasiaAfrica = Math.exp(-((nx - 1.0)**2 * 0.8 + (ny - 0.2)**2 * 0.6)) * 1.35;
+          const australia = Math.exp(-((nx - 2.1)**2 * 3.5 + (ny + 1.1)**2 * 3.0)) * 0.95;
+
+          const noise = Math.sin(x * 0.08) * Math.cos(y * 0.08) * 0.25 + Math.sin(x * 0.15 + y * 0.12) * 0.15;
+          const val = Math.max(americas, eurasiaAfrica, australia) + noise;
+
+          if (val > 0.48 && Math.abs(ny) < 1.75) {
+            map[idx] = NEUTRAL;
+            totalLandPixels++;
+          } else {
+            map[idx] = WATER;
+          }
+        }
+      }
+    }
+
+    function generateArchipelago() {
+      totalLandPixels = 0;
+      for (let y = 0; y < HEIGHT; y++) {
+        for (let x = 0; x < WIDTH; x++) {
+          const idx = y * WIDTH + x;
+          const n1 = Math.sin(x * 0.05) * Math.cos(y * 0.05);
+          const n2 = Math.sin(x * 0.12 + 1.5) * Math.sin(y * 0.12 + 0.5);
+          if (n1 + n2 * 0.6 > 0.25) {
+            map[idx] = NEUTRAL;
+            totalLandPixels++;
+          } else {
+            map[idx] = WATER;
+          }
+        }
+      }
+    }
+
+    function generatePangaea() {
+      totalLandPixels = 0;
+      const cx = WIDTH / 2, cy = HEIGHT / 2;
+      for (let y = 0; y < HEIGHT; y++) {
+        for (let x = 0; x < WIDTH; x++) {
+          const idx = y * WIDTH + x;
+          const dx = (x - cx) / cx, dy = (y - cy) / cy;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          const n = Math.sin(x * 0.04) * Math.cos(y * 0.04) * 0.3;
+          if (d + n < 0.72) {
+            map[idx] = NEUTRAL;
+            totalLandPixels++;
+          } else {
+            map[idx] = WATER;
+          }
+        }
+      }
+    }
+
+    // --- GAME INITIALIZATION ---
+    function initMatch() {
+      if (mapTypeSetting === "WORLD") generateWorldMap();
+      else if (mapTypeSetting === "ARCHIPELAGO") generateArchipelago();
+      else generatePangaea();
+
+      gameState = "SPAWN";
+      gameCycle = 0;
+      cycleProgress = 0.0;
+      activeAttackWaves = [];
+      activeBoats = [];
+
+      const pName = document.getElementById('playerName').value || "Conqueror";
+      players = [
+        { id: PLAYER_ID, name: pName, troops: 500.0, land: 0, isBot: false, color: [235, 47, 60] }
+      ];
+
+      for (let i = 0; i < botCountSetting; i++) {
+        const bName = BOT_NAMES[i % BOT_NAMES.length] + (i >= BOT_NAMES.length ? ` ${Math.floor(i/BOT_NAMES.length)+1}` : "");
+        const color = BOT_COLORS[i % BOT_COLORS.length];
+        players.push({
+          id: i + 3,
+          name: bName,
+          troops: 500.0,
+          land: 0,
+          isBot: true,
+          color: color
+        });
+      }
+
+      document.getElementById('lobby-screen').style.display = 'none';
+      document.getElementById('game-overlay').style.display = 'flex';
+      document.getElementById('overlay-msg').textContent = "CLICK LAND TO PICK YOUR SPAWN POINT";
+      renderMap();
+      updateUI();
+    }
+
+    // Player Spawn Click Listener
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = WIDTH / rect.width;
+      const scaleY = HEIGHT / rect.height;
+      const clickX = Math.floor((e.clientX - rect.left) * scaleX);
+      const clickY = Math.floor((e.clientY - rect.top) * scaleY);
+      const idx = clickY * WIDTH + clickX;
+
+      if (gameState === "SPAWN") {
+        if (map[idx] === NEUTRAL) {
+          spawnNucleus(PLAYER_ID, clickX, clickY);
+
+          // Spawn AI Bots across remaining neutral pixels
+          players.filter(p => p.isBot).forEach(bot => {
+            let spawned = false, tries = 0;
+            while (!spawned && tries < 1000) {
+              tries++;
+              const rx = Math.floor(Math.random() * WIDTH);
+              const ry = Math.floor(Math.random() * HEIGHT);
+              if (map[ry * WIDTH + rx] === NEUTRAL) {
+                spawnNucleus(bot.id, rx, ry);
+                spawned = true;
+              }
+            }
+          });
+
+          gameState = "PLAYING";
+          document.getElementById('game-overlay').style.display = 'none';
+        }
+      } else if (gameState === "PLAYING" && navalMode) {
+        launchBoat(PLAYER_ID, clickX, clickY);
+      }
+    });
+
+    function spawnNucleus(id, x, y) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT) {
+            const nIdx = ny * WIDTH + nx;
+            if (map[nIdx] === NEUTRAL) {
+              map[nIdx] = id;
+              const p = players.find(player => player.id === id);
+              if (p) p.land++;
+            }
+          }
+        }
+      }
+    }
+
+    // --- PRECISION DECIMAL ATTACK ENGINE ---
+    function triggerAttack(attackerId, percent) {
+      const attacker = players.find(p => p.id === attackerId);
+      if (!attacker || attacker.troops <= 20.0 || attacker.land === 0) return;
+
+      const attackPool = attacker.troops * (percent / 100.0);
+      const distanceTaxRatio = 0.0325; // 3.25% deployment tax
+      const effectiveTroops = attackPool * (1.0 - distanceTaxRatio);
+      attacker.troops -= attackPool;
+
+      let frontiers = [];
+      for (let y = 0; y < HEIGHT; y++) {
+        for (let x = 0; x < WIDTH; x++) {
+          if (map[y * WIDTH + x] === attackerId) {
+            if (hasExpandableNeighbor(x, y, attackerId)) {
+              frontiers.push({ x, y });
+            }
+          }
+        }
+      }
+
+      frontiers.sort(() => Math.random() - 0.5);
+      activeAttackWaves.push({
+        attackerId,
+        troops: effectiveTroops,
+        queue: frontiers
+      });
+    }
+
+    function hasExpandableNeighbor(x, y, myId) {
+      const neighbors = get4Neighbors(x, y);
+      return neighbors.some(n => {
+        const owner = map[n.y * WIDTH + n.x];
+        return owner !== WATER && owner !== myId;
+      });
+    }
+
+    function get4Neighbors(x, y) {
+      const res = [];
+      if (x > 0) res.push({ x: x - 1, y });
+      if (x < WIDTH - 1) res.push({ x: x + 1, y });
+      if (y > 0) res.push({ x, y: y - 1 });
+      if (y < HEIGHT - 1) res.push({ x, y: y + 1 });
+      return res;
+    }
+
+    function updateAttackWaves() {
+      for (let i = activeAttackWaves.length - 1; i >= 0; i--) {
+        const wave = activeAttackWaves[i];
+        const attacker = players.find(p => p.id === wave.attackerId);
+
+        if (!attacker || wave.troops <= 0.001 || wave.queue.length === 0) {
+          if (attacker && wave.troops > 0) attacker.troops += wave.troops; // Decimal refund
+          activeAttackWaves.splice(i, 1);
+          continue;
+        }
+
+        let stepBudget = Math.min(wave.queue.length, Math.ceil(wave.troops / 2.0));
+        let newQueue = [];
+
+        for (let s = 0; s < stepBudget; s++) {
+          if (wave.queue.length === 0 || wave.troops <= 0) break;
+          const curr = wave.queue.shift();
+          const neighbors = get4Neighbors(curr.x, curr.y);
+
+          for (let n of neighbors) {
+            const nIdx = n.y * WIDTH + n.x;
+            const targetOwner = map[nIdx];
+
+            if (targetOwner !== WATER && targetOwner !== wave.attackerId) {
+              let pixelCost = 2.0; // Base neutral land cost
+
+              if (targetOwner !== NEUTRAL) {
+                const defender = players.find(d => d.id === targetOwner);
+                const defDensity = defender && defender.land > 0 ? (defender.troops / defender.land) : 1.0;
+                pixelCost = 2.0 + 1.85 * Math.pow(defDensity, 1.12); // Exponential defender resistance formula
+                
+                if (defender && defender.land > 0) defender.land--;
+              }
+
+              if (wave.troops >= pixelCost) {
+                wave.troops -= pixelCost;
+                map[nIdx] = wave.attackerId;
+                attacker.land++;
+                newQueue.push(n);
+              }
+            }
+          }
+        }
+        wave.queue.push(...newQueue);
+      }
+    }
+
+    // --- NAVAL EXPEDITIONS ---
+    function launchBoat(attackerId, targetX, targetY) {
+      const attacker = players.find(p => p.id === attackerId);
+      if (!attacker || attacker.troops < 400.0) return;
+
+      const boatTroops = attacker.troops * 0.15;
+      attacker.troops -= boatTroops;
+
+      let origin = null, minDist = Infinity;
+      for (let y = 0; y < HEIGHT; y++) {
+        for (let x = 0; x < WIDTH; x++) {
+          if (map[y * WIDTH + x] === attackerId) {
+            const d = Math.hypot(x - targetX, y - targetY);
+            if (d < minDist) { minDist = d; origin = { x, y }; }
+          }
+        }
+      }
+
+      if (origin) {
+        activeBoats.push({
+          attackerId, troops: boatTroops,
+          x: origin.x, y: origin.y,
+          tx: targetX, ty: targetY
+        });
+      }
+    }
+
+    function updateBoats() {
+      for (let i = activeBoats.length - 1; i >= 0; i--) {
+        const b = activeBoats[i];
+        const dx = b.tx - b.x, dy = b.ty - b.y;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist < 3.0) {
+          spawnNucleus(b.attackerId, Math.floor(b.tx), Math.floor(b.ty));
+          const p = players.find(player => player.id === b.attackerId);
+          if (p) p.troops += b.troops;
+          activeBoats.splice(i, 1);
+        } else {
+          b.x += (dx / dist) * 2.8;
+          b.y += (dy / dist) * 2.8;
+        }
+      }
+    }
+
+    // --- STRENGTHENED BOT AI ENGINE ---
+    function processBotAI() {
+      const leaderboard = [...players].sort((a, b) => b.land - a.land);
+      const leader = leaderboard[0];
+
+      players.filter(p => p.isBot && p.land > 0).forEach(bot => {
+        const density = bot.troops / bot.land;
+
+        // Hardcore & Hard bots hoard troops during peak interest cycles
+        if ((difficulty === "HARDCORE" || difficulty === "HARD") && density < 85.0 && bot.troops < 5000.0) {
+          return; // Hoard troops to maximize exponential interest curve
+        }
+
+        let attackRatio = Math.floor(Math.random() * 20) + 15;
+        
+        // Hardcore AI Tactics: Gang-up on Top Leader & Boat Invasions
+        if (difficulty === "HARDCORE" && leader && leader.id !== bot.id && leader.land > totalLandPixels * 0.15) {
+          if (Math.random() < 0.45) {
+            triggerAttack(bot.id, 35); // Heavy targeted strike on top player
+            return;
+          }
+        }
+
+        // Launch Naval Expedition if landlocked or blocked by strong neighbors
+        if (Math.random() < 0.12 && bot.troops > 1500.0) {
+          const rx = Math.floor(Math.random() * WIDTH);
+          const ry = Math.floor(Math.random() * HEIGHT);
+          if (map[ry * WIDTH + rx] !== WATER && map[ry * WIDTH + rx] !== bot.id) {
+            launchBoat(bot.id, rx, ry);
+            return;
+          }
+        }
+
+        triggerAttack(bot.id, attackRatio);
+      });
+    }
+
+    // --- HIGH-PRECISION TICK & ECONOMIC ENGINE ---
+    let lastTime = performance.now();
+    function gameLoop(now) {
+      const dt = (now - lastTime) / 1000.0;
+      lastTime = now;
+
+      if (gameState === "PLAYING") {
+        cycleProgress += dt * 0.8;
+        if (cycleProgress >= 1.0) {
+          cycleProgress = 0.0;
+          gameCycle++;
+
+          // Precision Float Interest Formula
+          players.forEach(p => {
+            if (p.land === 0) return;
+
+            const density = p.troops / p.land;
+            const baseRate = 0.0815 * Math.exp(-gameCycle * 0.0035) + 0.0125;
+            
+            let interestRate = baseRate;
+            if (density > 100.0) {
+              const penaltyRatio = Math.pow((density - 100.0) / 50.0, 1.4);
+              interestRate = Math.max(0.0, baseRate * (1.0 - penaltyRatio));
+            }
+
+            const interestGained = p.troops * interestRate;
+            const territoryIncome = p.land * 1.0;
+            const maxCapacity = p.land * 150.0;
+
+            if (p.troops < maxCapacity) {
+              p.troops = Math.min(maxCapacity, p.troops + interestGained + territoryIncome);
+            }
+          });
+
+          processBotAI();
+        }
+
+        updateAttackWaves();
+        updateBoats();
+        checkMatchStatus();
+      }
+
+      renderMap();
+      updateUI();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function checkMatchStatus() {
+      const user = players.find(p => p.id === PLAYER_ID);
+      if (user.land === 0) {
+        gameState = "GAMEOVER";
+        document.getElementById('game-overlay').style.display = 'flex';
+        document.getElementById('overlay-msg').textContent = "DEFEAT - YOUR TERRITORY WAS CONQUERED";
+      } else if (user.land >= totalLandPixels * 0.90) {
+        gameState = "GAMEOVER";
+        document.getElementById('game-overlay').style.display = 'flex';
+        document.getElementById('overlay-msg').textContent = "VICTORY - WORLD DOMINATED!";
+      }
+    }
+
+    // --- RENDER ENGINE ---
+    function renderMap() {
+      const data = imgData.data;
+      for (let i = 0; i < map.length; i++) {
+        const owner = map[i];
+        let rgb = [14, 20, 30]; // Water default
+
+        if (owner === NEUTRAL) {
+          rgb = [160, 168, 175];
+        } else if (owner > 1) {
+          const p = players.find(player => player.id === owner);
+          rgb = p ? p.color : [255, 255, 255];
+        }
+
+        const pixelIdx = i * 4;
+        data[pixelIdx]     = rgb[0];
+        data[pixelIdx + 1] = rgb[1];
+        data[pixelIdx + 2] = rgb[2];
+        data[pixelIdx + 3] = 255;
+      }
+      ctx.putImageData(imgData, 0, 0);
+
+      // Render Boats
+      ctx.fillStyle = "#ffffff";
+      activeBoats.forEach(b => {
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    // --- UI & FORMATTING ---
+    function formatDecimalNum(num) {
+      if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+      if (num >= 1e3) return (num / 1e3).toFixed(2) + 'k';
+      return num.toFixed(2);
+    }
+
+    function updateUI() {
+      document.getElementById('cycle-bar-fill').style.width = (cycleProgress * 100.0) + '%';
+      const user = players.find(p => p.id === PLAYER_ID);
+
+      if (user) {
+        document.getElementById('val-troops').textContent = formatDecimalNum(user.troops);
+        document.getElementById('val-land').textContent = user.land.toLocaleString() + ' px';
+
+        const landPct = ((user.land / (totalLandPixels || 1)) * 100.0).toFixed(1);
+        document.getElementById('val-land-pct').textContent = landPct + '%';
+
+        const density = user.land > 0 ? (user.troops / user.land) : 0.0;
+        document.getElementById('val-density').textContent = density.toFixed(2) + ' / 150';
+
+        const baseRate = 0.0815 * Math.exp(-gameCycle * 0.0035) + 0.0125;
+        let interestRate = baseRate;
+        if (density > 100.0) {
+          const penaltyRatio = Math.pow((density - 100.0) / 50.0, 1.4);
+          interestRate = Math.max(0.0, baseRate * (1.0 - penaltyRatio));
+        }
+
+        const interestElem = document.getElementById('val-interest');
+        interestElem.textContent = (interestRate * 100.0).toFixed(3) + '%';
+        interestElem.className = density > 100.0 ? 'stat-val interest-red' : 'stat-val interest-green';
+      }
+
+      // Leaderboard calculation
+      const sorted = [...players].sort((a, b) => b.land - a.land);
+      const lbContainer = document.getElementById('lb-list');
+      lbContainer.innerHTML = '';
+
+      sorted.forEach(p => {
+        if (p.land === 0) return;
+        const row = document.createElement('div');
+        row.className = 'lb-row';
+        const pct = ((p.land / (totalLandPixels || 1)) * 100.0).toFixed(1);
+        row.style.color = `rgb(${p.color[0]},${p.color[1]},${p.color[2]})`;
+        row.innerHTML = `<span>${p.name}</span> <span>${pct}% (${formatDecimalNum(p.troops)})</span>`;
+        lbContainer.appendChild(row);
+      });
+    }
+
+    // --- CONTROLS & LISTENERS ---
+    document.getElementById('startGameBtn').addEventListener('click', () => {
+      botCountSetting = parseInt(document.getElementById('botCount').value);
+      difficulty = document.getElementById('botDifficulty').value;
+      mapTypeSetting = document.getElementById('mapType').value;
+      initMatch();
+    });
+
+    document.getElementById('attackSlider').addEventListener('input', (e) => {
+      attackPercent = parseInt(e.target.value);
+      document.getElementById('sliderVal').textContent = attackPercent + '%';
+    });
+
+    document.getElementById('attackBtn').addEventListener('click', () => {
+      if (gameState === "PLAYING") triggerAttack(PLAYER_ID, attackPercent);
+    });
+
+    document.getElementById('boatBtn').addEventListener('click', () => {
+      navalMode = !navalMode;
+      document.getElementById('boatBtn').classList.toggle('btn-active', navalMode);
+    });
+
+    document.getElementById('lobbyBtn').addEventListener('click', () => {
+      gameState = "LOBBY";
+      document.getElementById('lobby-screen').style.display = 'flex';
+    });
+
+    // Start Engine Game Loop
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
